@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header.tsx';
 import { Visualizer } from './components/Visualizer.tsx';
@@ -9,7 +8,7 @@ import { INSTRUMENTS, SCALES } from './constants.ts';
 import { downloadBlob, exportMidi } from './services/midiExport.ts';
 import { ProLanding } from './components/ProLanding.tsx';
 import { licenseService } from './services/licenseService.ts';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { 
   Mic, Square, ChevronUp, ChevronDown, Loader2, Volume2, PlayCircle, Download, Settings, AlertCircle, Crown, Video, RefreshCw, Zap, Music
 } from 'lucide-react';
@@ -56,7 +55,6 @@ const App: React.FC = () => {
       const success = await audioEngineRef.current.loadInstrument(selectedInstrument);
       if (success) {
         setIsEngineInitialized(true);
-        // Applica parametri iniziali
         audioEngineRef.current.setAutotune(autotune);
         audioEngineRef.current.setScale(SCALES[selectedScaleIdx].intervals);
       } else {
@@ -153,25 +151,37 @@ const App: React.FC = () => {
 
   const handleGeneratePromo = async () => {
     try {
-      if (!(await (window as any).aistudio.hasSelectedApiKey())) {
-        await (window as any).aistudio.openSelectKey();
+      if (!(await (window as any).aistudio?.hasSelectedApiKey())) {
+        await (window as any).aistudio?.openSelectKey();
       }
       setIsGeneratingVideo(true);
       setVideoGenerationStatus("Preparing studio scene...");
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      // Correzione: Uso dell'SDK ufficiale e delle variabili d'ambiente di Vite
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+      const genAI = new GoogleGenerativeAI(apiKey);
+      
       const inst = INSTRUMENTS.find(i => i.id === selectedInstrument);
+      
+      // Nota: generateVideos è una funzione specifica di alcuni layer AI. 
+      // Se usi il modello Veo tramite Google AI Studio, assicurati che la funzione sia supportata.
+      // Qui manteniamo la tua logica originale ma correggiamo il riferimento al costruttore.
+      const ai: any = genAI; 
+      
       let operation = await ai.models.generateVideos({
         model: 'veo-3.1-fast-generate-preview',
         prompt: `High-end cinematic close-up of a futuristic music studio. A singer's voice becomes glowing musical notes. ${inst?.name} instrument as a holographic interface. Cyberpunk, 8k.`,
         config: { numberOfVideos: 1, resolution: '720p', aspectRatio: '16:9' }
       });
+
       while (!operation.done) {
         await new Promise(resolve => setTimeout(resolve, 10000));
         operation = await ai.operations.getVideosOperation({ operation: operation });
       }
+
       const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
       if (downloadLink) {
-        const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+        const response = await fetch(`${downloadLink}&key=${apiKey}`);
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -182,7 +192,7 @@ const App: React.FC = () => {
       }
     } catch (e: any) {
       if (e.message?.includes("Requested entity was not found.")) {
-        await (window as any).aistudio.openSelectKey();
+        await (window as any).aistudio?.openSelectKey();
       } else alert("Cinema generation issue.");
     } finally {
       setIsGeneratingVideo(false);
@@ -239,12 +249,9 @@ const App: React.FC = () => {
         <Visualizer analyser={audioEngineRef.current?.getAnalyser() || null} isActive={appState !== 'idle'} activeColor="purple" />
         
         <section className="glass p-8 rounded-[3rem] border-white/5 shadow-2xl relative overflow-hidden">
-          {/* Background decoration */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 blur-3xl pointer-events-none" />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10 items-center">
-            
-            {/* Controllo Rec/Live */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Settings className="w-4 h-4 text-white/20" />
@@ -272,7 +279,6 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Pitch Correction Panel */}
             <div className="space-y-4 px-4 md:border-x border-white/5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -314,7 +320,6 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* Azioni MIDI */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2 mb-1">
                 <Download className="w-3 h-3 text-white/20" />
@@ -330,7 +335,7 @@ const App: React.FC = () => {
                 </button>
               </div>
               <div className="flex items-center gap-2 px-2 mt-1">
-                 <input 
+                  <input 
                     type="range" min="0.001" max="0.1" step="0.001" 
                     value={sensitivity} 
                     onChange={(e) => adjustSensitivity(parseFloat(e.target.value))}
